@@ -21,7 +21,7 @@ void error(const char *msg){
 int Socket(int domain, int type, int protocol){
     int res = socket(domain, type, protocol);
     if (res == -1) {
-        perror("Socket failed");
+        perror("Ошибка при создании сокета.");
         exit(EXIT_FAILURE);
     }
     return res;
@@ -30,21 +30,21 @@ int Socket(int domain, int type, int protocol){
 void Bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen){
     int res = bind(sockfd, addr, addrlen);
     if (res == -1){
-        perror("Bind failed");
+        perror("Ошибка привязки. ");
         exit(EXIT_FAILURE);
     }
 }
 void Listen(int sockfd, int backlog){
     int res = listen(sockfd, backlog);
     if (res == -1){
-        perror("Listen failed");
+        perror("Ошибка при прослушивании.");
         exit(EXIT_FAILURE);
     } 
 }
 int Accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen){
     int res = accept(sockfd, addr, addrlen);
     if (res == -1){
-        perror("Accept failed");
+        perror("Ошибка соединения.");
         exit(EXIT_FAILURE);
     } return res;
 }
@@ -175,7 +175,8 @@ int main(int argc, char *argv[]){
                     }else {
                         client.flag = 0;
                         bzero(buffer, 256);
-                        write(newsockfd, "К сожалению, админ не принял запрос.\n", 37);
+                        char *msg1 = "К сожалению, админ не принял запрос.\n";
+                        write(newsockfd, msg1, strlen(msg1));
                         n = write(newsockfd, buffer, strlen(buffer));
                         if (n == -1){
                             error("Ошибка при записи.\n");
@@ -216,7 +217,7 @@ int main(int argc, char *argv[]){
                         error("Ошибка при чтении ввода.\n");
                     }
                     
-                    if (strncmp(buffer, "echo", 4) == 0) {
+                    if (strncmp(buffer, "Echo", 4) == 0) {
                         client.echo = 1;
                         printf("Клиент возвращен в эхо.\n");
                         bzero(buffer, 256);
@@ -228,7 +229,7 @@ int main(int argc, char *argv[]){
                         break;
                     }
                     
-                    if (strncmp(buffer, "stop", 4) == 0) {
+                    if (strncmp(buffer, "Close", 4) == 0) {
                         printf("Завершение чата с клиентом.\n");
                         bzero(buffer, 256);
                         strcpy(buffer, "Чат завершен админом.\n");
