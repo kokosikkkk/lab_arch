@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <netinet/in.h> 
+#include <netinet/in.h>
 #include <netdb.h>
 
 
@@ -26,7 +26,7 @@ void Connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen){
         perror("Connection failed");
         exit(EXIT_FAILURE);
     }
-    
+
 }
 
 int main(int argc, char *argv[]){
@@ -38,7 +38,7 @@ int main(int argc, char *argv[]){
     struct hostent *server;
     server = gethostbyname(argv[1]);
     if (server == NULL){
-        fprintf(stderr, "Ошибка нет такого хоста");
+        fprintf(stderr, "Error: no such host");
         exit(EXIT_FAILURE);
     }
 
@@ -46,12 +46,25 @@ int main(int argc, char *argv[]){
     adr.sin_port = htons(atoi(argv[2]));
     bcopy((char *)server->h_addr, (char *)&adr.sin_addr.s_addr, server->h_length);
     Connect(fd, (struct sockaddr *) &adr, sizeof (adr));
-    printf("Вы подключились к %s %s\n", argv[1], argv[2]);
-    printf("Введите ping, чтобы удостоверится подключились вы к серверу или нет.\n");
-    printf("Если хотите отключиться от сервера введите Bye\n");
-    printf("Если хотите связать с админом, введите Admin\n");
-    printf("Если хотите вернуться в эхо-сервер, введите Echo\n");
-    printf("Если хотите посмотреть историю чата с сервером, введите History\n");
+
+    // add: user interface prompts ===
+    printf("Connected to %s %s\n", argv[1], argv[2]);
+    printf("=================================\n");
+    printf("📢 Welcome to the chat room!\n");
+    printf("📢 Step 1: Please set your username\n");
+    printf("📢 Enter: /username your_name\n");
+    printf("📢 Example: /username Ivan\n");
+    printf("📢 After setting username, you can start chatting!\n");
+    printf("=================================\n\n");
+    printf("Available commands:\n");
+    printf("  /username name - Set your username (required first)\n");
+    printf("  Normal message - Direct input, will broadcast to everyone\n");
+    printf("  ping           - Test server connection\n");
+    printf("  Admin          - Request private chat with admin\n");
+    printf("  Echo           - Return to broadcast chat mode\n");
+    printf("  History        - View chat history\n");
+    printf("  Bye            - Disconnect and exit\n");
+
     char buffer[256];
     int n;
     while (1){
@@ -61,29 +74,29 @@ int main(int argc, char *argv[]){
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
         FD_SET(STDIN_FILENO, &readfds);
-        
+
         select(fd + 1, &readfds, NULL, NULL, NULL);
-        
+
         if (FD_ISSET(fd, &readfds)) {
             bzero(buffer, 256);
             n = read(fd, buffer, 255);
             if (n > 0) {
-                printf("Сервер: %s", buffer);
+                printf("%s", buffer);
             }
             if (n == 0) {
-                printf("Сервер отключился\n");
+                printf("Server disconnected\n");
                 break;
             }
             if (n < 0){
-                error("Ошибка при чтении.");
+                error("Error reading.");
             }
         }
-    
+
         if (FD_ISSET(STDIN_FILENO, &readfds)) {
             fgets(buffer, 255, stdin);
             n = write(fd, buffer, strlen(buffer));
             if (n < 0){
-                error("Ошибка при записи");
+                error("Error writing");
             }
             int i = strncmp("Bye", buffer, 3);
             if (i == 0){
