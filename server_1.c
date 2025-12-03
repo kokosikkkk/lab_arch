@@ -6,12 +6,32 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/select.h>  // for select
+#include <time.h>        // for time stamp
+
 #define HISTORY_FILE "chat_history.txt"
 
 // for Chat room
 #define MAX_CLIENTS 10
 #define USERNAME_LEN 32
 #define BUFFER_SIZE 512
+
+#define MAX_COLORS 8
+typedef enum {
+    COLOR_RED = 31,
+    COLOR_GREEN = 32,
+    COLOR_YELLOW = 33,
+    COLOR_BLUE = 34,
+    COLOR_MAGENTA = 35,
+    COLOR_CYAN = 36,
+    COLOR_WHITE = 37,
+    COLOR_BRIGHT_RED = 91
+} ColorCode;
+
+
+ColorCode available_colors[MAX_COLORS] = {
+    COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_BLUE,
+    COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE, COLOR_BRIGHT_RED
+};
 
 // changed: add client state structure
 typedef struct {
@@ -21,6 +41,7 @@ typedef struct {
     char inf[256];
     char username[USERNAME_LEN];  // Client username
     int has_username;    // Username set flag
+    ColorCode color;
 } client_state;
 
 
@@ -66,11 +87,27 @@ int Accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     return res;
 }
 
+void get_timestamp(char *buffer, size_t size) {
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    strftime(buffer, size, "%H:%M:%S", tm_info);
+}
+
+// add:color assign function
+ColorCode assign_color() {
+    static int color_index = 0;
+    ColorCode color = available_colors[color_index];
+    color_index = (color_index + 1) % MAX_COLORS;
+    return color;
+}
+
 // change: Save chat history
 void saveChat(const char *sender, const char *message) {
     FILE *file = fopen(HISTORY_FILE, "a");
     if (file != NULL) {
-        fprintf(file, "%s: %s", sender, message);
+        char timestamp[20];
+        get_timestamp(timestamp, sizeof(timestamp));
+        fprintf(file, "[%s] %s: %s", timestamp, sender, message);
         fclose(file);
     }
 }
@@ -90,14 +127,22 @@ void showHistory(int sockfd) {
     fclose(file);
 }
 
-// change: Broadcast message function (with concurrency support)
+// change: Broadcast message function
 void broadcast_to_all(int sender_fd, client_state *sender, char *message) {
-    char broadcast_msg[BUFFER_SIZE];
+    char broadcast_msg[BUFFER_SIZE * 2];
+    char timestamp[20];
 
+    get_timestamp(timestamp, sizeof(timestamp));
+
+    // add ANSI colror
     if (sender->has_username && strlen(sender->username) > 0) {
-        snprintf(broadcast_msg, sizeof(broadcast_msg), "[%s]: %s", sender->username, message);
+        snprintf(broadcast_msg, sizeof(broadcast_msg),
+                "[%s] \033[1;%dm[%s]\033[0m: %s",  // username have color
+                timestamp, sender->color, sender->username, message);
     } else {
-        snprintf(broadcast_msg, sizeof(broadcast_msg), "[Client%d]: %s", sender_fd, message);
+        snprintf(broadcast_msg, sizeof(broadcast_msg),
+                "[%s] \033[1;%dm[Client%d]\033[0m: %s",
+                timestamp, sender->color, sender_fd, message);
     }
 
     if (sender->has_username) {
@@ -155,7 +200,12 @@ void set_username(int client_index, char *input_buffer) {
 
     // welcome message
     char broadcast_msg[150];
-    snprintf(broadcast_msg, sizeof(broadcast_msg), "System: Welcome new user %s to the chat room!\n", client->username);
+    char timestamp[20];
+    get_timestamp(timestamp, sizeof(timestamp));
+    snprintf(broadcast_msg, sizeof(broadcast_msg),
+            "[%s] \033[1;33m[System]\033[0m: Welcome new user \033[1;%dm%s\033[0m to the chat room!\n",
+            timestamp, client->color, client->username);
+
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i].sockfd > 0 && clients[i].sockfd != client->sockfd && clients[i].echo == 1) {
             write(clients[i].sockfd, broadcast_msg, strlen(broadcast_msg));
@@ -213,7 +263,12 @@ void handle_client_message(int client_index, char *buffer) {
         // User exit broadcast
         if (client->has_username) {
             char leave_msg[150];
-            snprintf(leave_msg, sizeof(leave_msg), "Система: Пользователь %s покинул чат\n", client->username);
+            char timestamp[20];
+            get_timestamp(timestamp, sizeof(timestamp));
+            snprintf(leave_msg, sizeof(leave_msg),
+                    "[%s] \033[1;33m[System]\033[0m: User \033[1;%dm%s\033[0m left the chat\n",
+                    timestamp, client->color, client->username);
+
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (clients[i].sockfd > 0 && clients[i].sockfd != sockfd && clients[i].echo == 1) {
                     write(clients[i].sockfd, leave_msg, strlen(leave_msg));
@@ -235,10 +290,15 @@ void handle_client_message(int client_index, char *buffer) {
 
         // Echo back to sender
         char echo_msg[BUFFER_SIZE];
+        char timestamp[20];
+        get_timestamp(timestamp, sizeof(timestamp));
+
         if (client->has_username) {
-            snprintf(echo_msg, sizeof(echo_msg), "[You]: %s", buffer);
+            snprintf(echo_msg, sizeof(echo_msg),
+                    "[%s] \033[1;90m[You]\033[0m: %s", timestamp, buffer);  // grey for self
         } else {
-            snprintf(echo_msg, sizeof(echo_msg), "[You]: %s", buffer);
+            snprintf(echo_msg, sizeof(echo_msg),
+                    "[%s] \033[1;90m[You]\033[0m: %s", timestamp, buffer);
         }
         write(sockfd, echo_msg, strlen(echo_msg));
     } else if (client->admin_chatting == 1) {
@@ -258,6 +318,7 @@ void init_client_state(int client_index, int sockfd) {
     client->has_username = 0;
     memset(client->username, 0, USERNAME_LEN);
     snprintf(client->inf, sizeof(client->inf), "Client%d", sockfd);
+    client->color = assign_color();  // give color to new client
 
     // Send welcome message
     char welcome_msg[BUFFER_SIZE];

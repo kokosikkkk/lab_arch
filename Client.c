@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+#define BUFFER_SIZE 1024
 
 void error(const char *msg){
     perror(msg);
@@ -31,6 +32,8 @@ void Connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen){
 
 int main(int argc, char *argv[]){
     if (argc < 3){
+        fprintf(stderr, "Usage: %s <server_ip> <port>\n", argv[0]);
+        fprintf(stderr, "Example: %s 127.0.0.1 8080\n", argv[0]);
         exit(EXIT_FAILURE);
     }
     int fd = Socked(AF_INET, SOCK_STREAM, 0);
@@ -47,7 +50,6 @@ int main(int argc, char *argv[]){
     bcopy((char *)server->h_addr, (char *)&adr.sin_addr.s_addr, server->h_length);
     Connect(fd, (struct sockaddr *) &adr, sizeof (adr));
 
-    // add: user interface prompts ===
     printf("Connected to %s %s\n", argv[1], argv[2]);
     printf("=================================\n");
     printf("📢 Welcome to the chat room!\n");
@@ -64,12 +66,13 @@ int main(int argc, char *argv[]){
     printf("  Echo           - Return to broadcast chat mode\n");
     printf("  History        - View chat history\n");
     printf("  Bye            - Disconnect and exit\n");
+    printf("\nTip: Each user has a different color for easy identification\n");
 
-    char buffer[256];
+    char buffer[BUFFER_SIZE];
     int n;
     while (1){
         fflush(stdout);
-        bzero(buffer, 256);
+        bzero(buffer, BUFFER_SIZE);
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
@@ -78,10 +81,12 @@ int main(int argc, char *argv[]){
         select(fd + 1, &readfds, NULL, NULL, NULL);
 
         if (FD_ISSET(fd, &readfds)) {
-            bzero(buffer, 256);
-            n = read(fd, buffer, 255);
+            bzero(buffer, BUFFER_SIZE);
+            n = read(fd, buffer, BUFFER_SIZE - 1);
             if (n > 0) {
+                buffer[n] = '\0';
                 printf("%s", buffer);
+                fflush(stdout);
             }
             if (n == 0) {
                 printf("Server disconnected\n");
@@ -93,7 +98,7 @@ int main(int argc, char *argv[]){
         }
 
         if (FD_ISSET(STDIN_FILENO, &readfds)) {
-            fgets(buffer, 255, stdin);
+            fgets(buffer, BUFFER_SIZE - 1, stdin);
             n = write(fd, buffer, strlen(buffer));
             if (n < 0){
                 error("Error writing");

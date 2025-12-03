@@ -1,0 +1,4 @@
+/mnt/c/Users/iigna/Desktop/Lab/lab_arch/build/CMakeFiles/Server.dir
+/mnt/c/Users/iigna/Desktop/Lab/lab_arch/build/CMakeFiles/Client.dir
+/mnt/c/Users/iigna/Desktop/Lab/lab_arch/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/iigna/Desktop/Lab/lab_arch/build/CMakeFiles/rebuild_cache.dir
